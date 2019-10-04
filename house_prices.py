@@ -15,16 +15,17 @@ from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.impute import SimpleImputer
 from sklearn.compose import TransformedTargetRegressor
 from sklearn.preprocessing import (
-    StandardScaler, PowerTransformer
+    PowerTransformer
 )
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, mean_absolute_error
 
 from xgboost.sklearn import XGBRegressor
-from sklearn.linear_model import LinearRegression
+# from sklearn.linear_model import LinearRegression
 
 from house_classes import (
-        Column_selector, Model_imputer
+        Column_selector, 
+        # Model_imputer
         )
 
 # SEED = 12345
@@ -36,27 +37,31 @@ def feature_engineering():
     '''
     
     # 1. Numeric keys
-    numeric_keys = ['MSSubClass', 'LotArea']
+    numeric_keys = ['MSSubClass', 'LotFrontage', 'LotArea', 'OverallQual',
+                    'OverallCond', 'YearBuilt', 'YearRemodAdd', 'GrLivArea',
+                    'YrSold']
     numeric_pipeln = Pipeline([
         ('select', Column_selector(key=numeric_keys)),
         ('impute', SimpleImputer(strategy='median'))])
     
+    # how old when sold feature?
+    
+    
     # 2. Frontage keys
-    frontage_keys = ['LotFrontage', 'LotArea']
-    front_target_key = 'LotFrontage'
-    front_prediction_keys = ['LotArea']
-    mi = Model_imputer(target_key = 'LotFrontage',
-                       predictive_keys = ['LotArea'],
-                       model=LinearRegression())
-    frontage_pipeln = Pipeline(mi)
+#    frontage_keys = ['LotFrontage', 'LotArea']
+#    front_target_key = 'LotFrontage'
+#    front_prediction_keys = ['LotArea']
+#    mi = Model_imputer(target_key = 'LotFrontage',
+#                       predictive_keys = ['LotArea'],
+#                       model=LinearRegression())
+#    frontage_pipeln = Pipeline(mi)
             
             
             # ('imputer', Model_imputer(front_target_key, front_prediction_keys, LinearRegression()))
             # ('selector2', Column_selector(key=front_target_key))
     
     
-    return [('numeric', numeric_pipeln),
-            ('frontage', frontage_pipeln)]
+    return [('numeric', numeric_pipeln)]
 
 
 def xgboost_params():
@@ -85,13 +90,13 @@ def feature_engineering_pipe():
         ('engineer', features)])
        
         
-def model_(model=xgboost_params()):
+def model(model=xgboost_params()):
     return Pipeline([('xgb', model)])
 
 
 def model_pipeline():
     return Pipeline(feature_engineering_pipe().steps + 
-                    model_().steps)
+                    model().steps)
 
 
 if __name__ == '__main__':
@@ -143,13 +148,12 @@ if __name__ == '__main__':
     new_model = model_pipeline()
     new_model.fit(train, Y_train)
 
-    Y_preds2 = new_model.predict(test)
-    
+    Y_preds = new_model.predict(test)
     df_res = pd.DataFrame({'Actual': Y_test.flatten(),
-                           'Predicted': Y_preds2.flatten()})
+                           'Predicted': Y_preds.flatten()})
     print(df_res)
-    print(r2_score(Y_test, Y_preds2))
-
+    print(r2_score(Y_test, Y_preds))
+    print(mean_absolute_error(Y_test, Y_preds))
     
     
     
