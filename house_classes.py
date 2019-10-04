@@ -142,67 +142,55 @@ class Model_imputer(BaseEstimator, TransformerMixin):
         return X
 
 
-class PandasFeatureUnion(_BaseComposition, TransformerMixin):
+class ApplyTransformer(BaseEstimator, TransformerMixin):
     """
-    Simple version of `sklearn.pipeline.FeatureUnion
-    <https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.FeatureUnion.html>`_
-    that preserves pandas DataFrame type. Applies transformers and \
-    concatenates output. Uses `Parallel
-    <https://joblib.readthedocs.io/en/latest/parallel.html>`_
-    to execute transformers in (embarassingly) parallel.
-
-    :param list transformer_list: List of tuples ("name", \
-    sklearn_transformer) i.e. transformer must have ``fit_transform`` method
-    :param int n_jobs: number of processors to use
-
-    **Example**
-
-    >>> from sklearn.pipeline import Pipeline
-    >>> X = pd.DataFrame([[1.0, 'a'], [2.0, 'a'], [np.nan, 'b']],
-    ...                  columns=['cost', 'cat'])
-    >>> dt = DummyTransformer(**{'prefix': 'cat'})
-    >>> dummy_pipe = Pipeline([("select", ColumnSelector("cat")),
-    ...                        ("dummy", dt)])
-    >>> pi = PandasImputer(cols=['cost'])
-    >>> pi_pipe = Pipeline([("imputer", pi),
-    ...                     ("selector", ColumnSelector(['cost']))])
-    >>> transformer_list = [("imputer", pi_pipe),
-    ...                     ("encoder", dummy_pipe)]
-    >>> pfu = PandasFeatureUnion(transformer_list)
-    >>> pfu.fit_transform(X)
-       cost  cat_a  cat_b
-    0   1.0      1      0
-    1   2.0      1      0
-    2   1.5      0      1
+    Apply arbitrary function to pandas dataframe
     """
-
-    def __init__(self, transformer_list, n_jobs=1):
-        self.transformer_list = transformer_list
-        self.n_jobs = n_jobs
-
-    @staticmethod
-    def _fit_one_transformer(transformer, X, y):
-        label, transformer_ = transformer
-        return label, transformer_.fit(X, y)
-
-    @staticmethod
-    def _transform_one(transformer, X, y):
-        _, transformer_ = transformer
-        return transformer_.transform(X)
+    def __init__(self, func, col=None, col_suffix='_f', **kwargs):
+        self.func = func
+        self.col = col
+        self.col_suffix = col_suffix
+        self.kwargs = kwargs
 
     def fit(self, X, y=None):
-
-        self.transformer_list = Parallel(n_jobs=self.n_jobs)(
-            delayed(self._fit_one_transformer)(trans, X, y)
-            for trans in self.transformer_list)
         return self
 
     def transform(self, X, y=None):
-        Xout = Parallel(n_jobs=self.n_jobs)(
-            delayed(self._transform_one)(trans, X, y)
-            for trans in self.transformer_list)
-        Xout = pd.concat(Xout, axis=1)
-        return Xout
+        if self.col is None:
+            return X.apply(self.func, **self.kwargs)
+        else:
+            X[self.col + self.col_suffix] = X[self.col].apply(self.func)
+            return X
+
+
+class DummyTransformer(BaseEstimator, TransformerMixin):
+    """
+    Dummy Transformer
+    """
+
+    def __init__(self, keys=None, **kwargs):
+        self.keys = keys
+        self.kwargs = kwargs
+
+    def fit(self, X, y=None):
+        if self.keys is None:
+            self.keys = pd.Series(X).unique()
+        self.keys = pd.Series(self.keys)
+        self.keys = self.keys[self.keys.notnull()]
+        if 'prefix' in self.kwargs:
+            prefixes = [self.kwargs['prefix']]*len(self.keys)
+            self.r_keys = pd.Series(
+                [prefix + '_' + key
+                 for key, prefix in zip(self.keys, prefixes)])
+        else:
+            self.r_keys = self.keys
+        return self
+
+    def transform(self, X, y=None):
+        X = pd.Series(X)
+        X = pd.concat([X, self.keys])
+        return pd.get_dummies(X, **self.kwargs)[self.r_keys][:-len(self.keys)]
+
 
 
   

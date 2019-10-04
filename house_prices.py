@@ -25,10 +25,20 @@ from xgboost.sklearn import XGBRegressor
 
 from house_classes import (
         Column_selector, 
-        # Model_imputer
+        # Model_imputer,
+        ApplyTransformer,
+        DummyTransformer
+        )
+
+from house_functions import (
+        ZoneTransformer
         )
 
 # SEED = 12345
+
+# train['MSZoning'].isnull().value_counts()
+# train['MSZoning'].value_counts()
+
 
 def feature_engineering():
     '''
@@ -38,11 +48,26 @@ def feature_engineering():
     
     # 1. Numeric keys
     numeric_keys = ['MSSubClass', 'LotFrontage', 'LotArea', 'OverallQual',
-                    'OverallCond', 'YearBuilt', 'YearRemodAdd', 'GrLivArea',
-                    'YrSold']
+                    'OverallCond', 'YearBuilt', 'YearRemodAdd', 'MasVnrArea',
+                    'BsmtFinSF1', 'BsmtFinSF2', 'BsmtUnfSF', 'TotalBsmtSF',
+                    '1stFlrSF', '2ndFlrSF', 'LowQualFinSF', 'GrLivArea',
+                    'BsmtFullBath', 'BsmtHalfBath', 'FullBath', 'HalfBath',
+                    'BedroomAbvGr', 'KitchenAbvGr', 'TotRmsAbvGrd',
+                    'Fireplaces', 'GarageYrBlt', 'GarageCars', 'GarageArea',
+                    'WoodDeckSF', 'OpenPorchSF', 'EnclosedPorch', '3SsnPorch',
+                    'ScreenPorch', 'PoolArea', 'MiscVal', 'MoSold', 'YrSold']
     numeric_pipeln = Pipeline([
         ('select', Column_selector(key=numeric_keys)),
         ('impute', SimpleImputer(strategy='median'))])
+    
+    # 2. Zone keys
+    zoning_keys = ['RL', 'RM', 'FV', 'RH', 'ALL']
+    zoning_pipeln = Pipeline([
+            ('selector', Column_selector(key='MSZoning')),
+            ('filter', ApplyTransformer(func=ZoneTransformer)),
+            ('dummies', DummyTransformer(zoning_keys, **{'prefix': 'ZONE'}))
+            ])
+    
     
     # how old when sold feature?
     
@@ -61,7 +86,8 @@ def feature_engineering():
             # ('selector2', Column_selector(key=front_target_key))
     
     
-    return [('numeric', numeric_pipeln)]
+    return [('numeric', numeric_pipeln),
+            ('zoning', zoning_pipeln)]
 
 
 def xgboost_params():
